@@ -1,0 +1,21 @@
+<main class="landing-shell">
+  <section class="landing-copy" aria-labelledby="landing-title">
+    <p class="eyebrow">Asociación de panaderías</p>
+    <h1 id="landing-title">El pulso de cada pedido, en un solo lugar.</h1>
+    <p class="landing-lede">Pedidos360 conecta locales, cocinas y despachos para que cada compra avance con claridad.</p>
+    <div class="trust-row"><span class="status-dot"></span><span>Operación centralizada para 20 locales</span></div>
+  </section>
+  <section class="login-panel" aria-labelledby="login-title">
+    <div class="brand-mark" aria-hidden="true">P<span>360</span></div>
+    <p class="panel-kicker">Portal operativo</p>
+    <h2 id="login-title">Bienvenido a Pedidos360</h2>
+    <p class="panel-copy">Ingresa con tu cuenta corporativa para acceder a las herramientas de tu equipo.</p>
+    <button class="microsoft-button" type="button" (click)="signIn()" [disabled]="isLoading()">
+      <span class="ms-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span>{{ isLoading() ? 'Conectando...' : 'Continuar con Microsoft' }}</span>
+    </button>
+    @if (auth.isDemoMode) { <p class="demo-note">Modo demostración activo. Configura el Client ID de Entra ID para habilitar Microsoft real.</p> }
+    @if (errorMessage()) { <p class="error-message" role="alert">{{ errorMessage() }}</p> }
+    <p class="security-note">Acceso protegido por Microsoft Entra ID</p>
+  </section>
+</main>

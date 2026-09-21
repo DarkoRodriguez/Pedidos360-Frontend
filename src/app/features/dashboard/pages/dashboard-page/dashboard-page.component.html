@@ -1,0 +1,641 @@
+<main class="dashboard-shell">
+  <!-- Toast de Notificaciones -->
+  @if (toastMessage()) {
+    <div class="toast-notification" role="status" aria-live="polite">
+      <span>{{ toastMessage() }}</span>
+    </div>
+  }
+
+  <!-- Sidebar Lateral -->
+  <aside class="sidebar" aria-label="Navegación principal">
+    <div class="sidebar-brand">
+      <span class="brand-mark small">P<span>360</span></span>
+      <span>Pedidos360</span>
+    </div>
+    
+    <div class="workspace-label">Panel Operativo</div>
+    <nav>
+      <button class="nav-item" [class.active]="activeTab() === 'resumen'" (click)="selectTab('resumen')" type="button">
+        <span class="nav-icon">⌂</span>Resumen
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 'pedidos'" (click)="selectTab('pedidos')" type="button">
+        <span class="nav-icon">▣</span>Pedidos
+        <span class="nav-count">{{ pedidos().length }}</span>
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 'productos'" (click)="selectTab('productos')" type="button">
+        <span class="nav-icon">◫</span>Productos
+        <span class="nav-count">{{ productos().length }}</span>
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 'rbac'" [class.locked]="!canAccessRbacTab()" (click)="selectTab('rbac')" type="button">
+        <span class="nav-icon">{{ canAccessRbacTab() ? '♙' : '🔒' }}</span>Roles (RBAC)
+      </button>
+      <a class="nav-item store-link" routerLink="/">
+        <span class="nav-icon">↗</span>Ir a la Tienda
+      </a>
+    </nav>
+
+    <!-- Widget de Estado RBAC / Entra ID -->
+    <div class="rbac-role-card">
+      @if (auth.isDemoMode) {
+        <span class="eyebrow role-eyebrow">Simulador de Rol (Demo)</span>
+        <div class="role-selector-pills">
+          <button type="button" [class.active]="simulatedRole() === 'ADMIN'" (click)="setSimulatedRole('ADMIN')">ADMIN</button>
+          <button type="button" [class.active]="simulatedRole() === 'GERENTE'" (click)="setSimulatedRole('GERENTE')">GERENTE</button>
+          <button type="button" [class.active]="simulatedRole() === 'CUSTOMER'" (click)="setSimulatedRole('CUSTOMER')">USER</button>
+        </div>
+      } @else {
+        <span class="eyebrow role-eyebrow">Rol Azure Entra ID</span>
+        <div style="font-weight: 700; color: #fff; font-size: 0.85rem; margin-bottom: 0.2rem;">
+          🛡️ {{ auth.userRole() }}
+        </div>
+        @if (isSimulationAllowed()) {
+          <small style="color: #a4b3c6; font-size: 0.62rem;">Vista previa de rol (Admin):</small>
+          <div class="role-selector-pills">
+            <button type="button" [class.active]="simulatedRole() === 'ADMIN'" (click)="setSimulatedRole('ADMIN')">ADMIN</button>
+            <button type="button" [class.active]="simulatedRole() === 'GERENTE'" (click)="setSimulatedRole('GERENTE')">GERENTE</button>
+            <button type="button" [class.active]="simulatedRole() === 'CUSTOMER'" (click)="setSimulatedRole('CUSTOMER')">USER</button>
+          </div>
+        }
+      }
+      <small class="role-desc">
+        @if (effectiveRole() === 'ADMIN') { Acceso total (CRUD Productos y Pedidos) }
+        @if (effectiveRole() === 'GERENTE') { Crea y edita productos / pedidos }
+        @if (effectiveRole() === 'COCINA') { Opera pedidos en cocina }
+        @if (effectiveRole() === 'REPARTIDOR') { Gestiona entregas y despacho }
+        @if (effectiveRole() === 'CUSTOMER') { Consulta y realiza pedidos }
+      </small>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="logout-link" type="button" (click)="signOut()">↪ Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <!-- Contenedor Principal del Dashboard -->
+  <section class="dashboard-content">
+    <header class="topbar">
+      <div class="breadcrumb">
+        <span>Operaciones</span>
+        <span>/</span>
+        <strong>
+          @if (activeTab() === 'resumen') { Resumen General }
+          @if (activeTab() === 'pedidos') { Gestión de Pedidos }
+          @if (activeTab() === 'productos') { Catálogo de Productos }
+          @if (activeTab() === 'rbac') { Matriz de Control de Acceso (RBAC) }
+        </strong>
+      </div>
+      <div class="topbar-actions">
+        <span class="role-badge" [class.admin]="effectiveRole() === 'ADMIN'" [class.gerente]="effectiveRole() === 'GERENTE'">
+          {{ effectiveRole() }}
+        </span>
+        <div class="user-menu">
+          <span class="avatar">{{ auth.userName().slice(0, 2).toUpperCase() }}</span>
+          <span class="user-meta">
+            <strong>{{ auth.userName() }}</strong>
+            <small>{{ auth.userEmail() || 'Sesión Autenticada' }}</small>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <div class="dashboard-main">
+      
+      <!-- ==================== TAB: RESUMEN ==================== -->
+      @if (activeTab() === 'resumen') {
+        <div class="welcome-row">
+          <div>
+            <p class="eyebrow">Control Operacional</p>
+            <h1>Buenos días, {{ auth.userName() }}.</h1>
+            <p class="page-subtitle">Monitoreo de pedidos y productos en tiempo real.</p>
+          </div>
+          <div class="action-btn-group">
+            <button class="primary-button" type="button" (click)="abrirCrearPedidoModal()">
+              <span aria-hidden="true">+</span> Nuevo pedido
+            </button>
+            @if (canCreateEditProducts()) {
+              <button class="secondary-btn" type="button" (click)="abrirCrearProductoModal()">
+                <span aria-hidden="true">+</span> Nuevo producto
+              </button>
+            }
+          </div>
+        </div>
+
+        <section class="metric-grid" aria-label="Indicadores principales">
+          @for (metric of metrics(); track metric.label) {
+            <article class="metric-card">
+              <div class="metric-head">
+                <span>{{ metric.label }}</span>
+                <span class="metric-icon {{ metric.tone }}">◈</span>
+              </div>
+              <strong>{{ metric.value }}</strong>
+              <small class="{{ metric.tone }}">{{ metric.detail }}</small>
+            </article>
+          }
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel orders-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">Monitor en vivo</p>
+                <h2>Pedidos recientes</h2>
+              </div>
+              <button class="view-all-link" type="button" (click)="selectTab('pedidos')">Ver todos ({{ pedidos().length }}) →</button>
+            </div>
+            
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Cliente</th>
+                    <th>Productos</th>
+                    <th>Estado</th>
+                    <th>Total</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @if (pedidos().length === 0) {
+                    <tr>
+                      <td colspan="6" class="empty-table-cell">No hay pedidos registrados aún. Realiza uno desde la tienda o añade uno manual.</td>
+                    </tr>
+                  } @else {
+                    @for (pedido of pedidos().slice(0, 5); track pedido.id) {
+                      <tr>
+                        <td><strong>#{{ pedido.id }}</strong></td>
+                        <td>{{ pedido.cliente }}</td>
+                        <td class="product-summary-col" title="{{ pedido.producto }}">{{ pedido.producto }}</td>
+                        <td>
+                          <span class="status {{ getEstadoTone(pedido.estado) }}">
+                            <i></i>{{ pedido.estado }}
+                          </span>
+                        </td>
+                        <td><strong>${{ (pedido.total || 0) | number:'1.0-0' }}</strong></td>
+                        <td>
+                          <button class="table-action-btn" type="button" (click)="abrirEditarPedidoModal(pedido)">Editar</button>
+                        </td>
+                      </tr>
+                    }
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel activity-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-kicker">Inventario Rápido</p>
+                <h2>Productos Activos</h2>
+              </div>
+              <button class="view-all-link" type="button" (click)="selectTab('productos')">Catálogo →</button>
+            </div>
+            <div class="quick-product-list">
+              @for (prod of productos().slice(0, 4); track prod.id) {
+                <div class="quick-prod-item">
+                  <img [src]="prod.imagen" [alt]="prod.nombre" class="quick-prod-thumb" />
+                  <div class="quick-prod-info">
+                    <strong>{{ prod.nombre }}</strong>
+                    <span>{{ prod.categoria }} · Stock: {{ prod.stock }}</span>
+                  </div>
+                  <strong class="quick-prod-price">${{ prod.precio | number:'1.0-0' }}</strong>
+                </div>
+              }
+            </div>
+          </article>
+        </section>
+      }
+
+      <!-- ==================== TAB: PEDIDOS (CRUD) ==================== -->
+      @if (activeTab() === 'pedidos') {
+        <div class="tab-header-row">
+          <div>
+            <p class="eyebrow">Gestión de Ordenes</p>
+            <h2>Módulo de Pedidos</h2>
+            <p class="page-subtitle">Visualiza, actualiza el estado o genera nuevas órdenes de venta.</p>
+          </div>
+          <button class="primary-button" type="button" (click)="abrirCrearPedidoModal()">
+            <span>+</span> Crear Pedido
+          </button>
+        </div>
+
+        <div class="filter-search-bar">
+          <div class="pill-filters">
+            @for (est of ['TODOS', 'En preparación', 'En despacho', 'Confirmado', 'Entregado', 'Cancelado']; track est) {
+              <button type="button" [class.active]="pedidoEstadoFilter() === est" (click)="pedidoEstadoFilter.set(est)">
+                {{ est }}
+              </button>
+            }
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar por cliente o producto..."
+            class="search-input"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+          />
+        </div>
+
+        <div class="panel full-table-panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Cliente</th>
+                  <th>Productos / Detalle</th>
+                  <th>Cant.</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                  <th>Cambio Rápido</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @if (filteredPedidos().length === 0) {
+                  <tr>
+                    <td colspan="8" class="empty-table-cell">No se encontraron pedidos con los filtros seleccionados.</td>
+                  </tr>
+                } @else {
+                  @for (pedido of filteredPedidos(); track pedido.id) {
+                    <tr>
+                      <td><strong>#{{ pedido.id }}</strong></td>
+                      <td><strong>{{ pedido.cliente }}</strong></td>
+                      <td class="product-summary-col" title="{{ pedido.producto }}">{{ pedido.producto }}</td>
+                      <td>{{ pedido.cantidad }}</td>
+                      <td><strong>${{ (pedido.total || 0) | number:'1.0-0' }}</strong></td>
+                      <td>
+                        <span class="status {{ getEstadoTone(pedido.estado) }}">
+                          <i></i>{{ pedido.estado }}
+                        </span>
+                      </td>
+                      <td>
+                        <select
+                          class="status-select"
+                          [ngModel]="pedido.estado"
+                          (ngModelChange)="cambiarEstadoRapido(pedido, $event)"
+                        >
+                          <option value="En preparación">En preparación</option>
+                          <option value="En despacho">En despacho</option>
+                          <option value="Confirmado">Confirmado</option>
+                          <option value="Entregado">Entregado</option>
+                          <option value="Cancelado">Cancelado</option>
+                        </select>
+                      </td>
+                      <td>
+                        <div class="table-actions-inline">
+                          <button class="table-action-btn" type="button" (click)="abrirEditarPedidoModal(pedido)">Editar</button>
+                          @if (canDeleteOrders()) {
+                            <button class="table-action-btn delete" type="button" (click)="confirmarEliminar('pedido', pedido.id!, 'Pedido #' + pedido.id)">Eliminar</button>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+
+      <!-- ==================== TAB: PRODUCTOS (CRUD) ==================== -->
+      @if (activeTab() === 'productos') {
+        <div class="tab-header-row">
+          <div>
+            <p class="eyebrow">Inventario y Catálogo</p>
+            <h2>Gestión de Productos</h2>
+            <p class="page-subtitle">Administra los productos de la panadería, precios, stock e imágenes.</p>
+          </div>
+          @if (canCreateEditProducts()) {
+            <button class="primary-button" type="button" (click)="abrirCrearProductoModal()">
+              <span>+</span> Crear Producto
+            </button>
+          }
+        </div>
+
+        <div class="filter-search-bar">
+          <div class="pill-filters">
+            @for (cat of ['TODOS', 'Pan fresco', 'Dulce', 'Salado']; track cat) {
+              <button type="button" [class.active]="productoCategoriaFilter() === cat" (click)="productoCategoriaFilter.set(cat)">
+                {{ cat }}
+              </button>
+            }
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar por nombre o descripción..."
+            class="search-input"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+          />
+        </div>
+
+        <div class="products-crud-grid">
+          @if (filteredProductos().length === 0) {
+            <div class="empty-state-box">
+              <p>No se encontraron productos en esta categoría.</p>
+            </div>
+          } @else {
+            @for (prod of filteredProductos(); track prod.id) {
+              <article class="product-crud-card" [class.inactive]="!prod.activo">
+                <div class="card-img-wrapper">
+                  <img [src]="prod.imagen" [alt]="prod.nombre" />
+                  @if (prod.badge) {
+                    <span class="card-badge">{{ prod.badge }}</span>
+                  }
+                  <span class="stock-tag" [class.low]="prod.stock <= 10">Stock: {{ prod.stock }}</span>
+                </div>
+                
+                <div class="card-content">
+                  <div class="card-meta">
+                    <span class="cat-label">{{ prod.categoria }}</span>
+                    <strong class="price-label">${{ prod.precio | number:'1.0-0' }}</strong>
+                  </div>
+                  <h3>{{ prod.nombre }}</h3>
+                  <p class="desc-label">{{ prod.descripcion }}</p>
+
+                  <div class="card-footer-actions">
+                    <button
+                      class="toggle-status-btn"
+                      [class.active]="prod.activo"
+                      (click)="toggleActivoProducto(prod)"
+                      [disabled]="!canCreateEditProducts()"
+                      type="button"
+                    >
+                      {{ prod.activo ? '● Activo' : '○ Inactivo' }}
+                    </button>
+
+                    <div class="action-buttons-wrap">
+                      @if (canCreateEditProducts()) {
+                        <button class="card-btn edit" type="button" (click)="abrirEditarProductoModal(prod)">Editar</button>
+                      }
+                      @if (canDeleteProducts()) {
+                        <button class="card-btn delete" type="button" (click)="confirmarEliminar('producto', prod.id, prod.nombre)">Borrar</button>
+                      }
+                    </div>
+                  </div>
+                </div>
+              </article>
+            }
+          }
+        </div>
+      }
+
+      <!-- ==================== TAB: RBAC ==================== -->
+      @if (activeTab() === 'rbac') {
+        <div class="tab-header-row">
+          <div>
+            <p class="eyebrow">Seguridad y Control de Acceso</p>
+            <h2>Configuración RBAC (Role-Based Access Control)</h2>
+            <p class="page-subtitle">Políticas de seguridad definidas en el backend y reflejadas en la interfaz de usuario.</p>
+          </div>
+        </div>
+
+        <div class="rbac-matrix-panel panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">{{ auth.isDemoMode ? 'Simulador Interactivo (Demo)' : 'Control de Acceso Entra ID' }}</p>
+              <h3>Rol y Permisos del Sistema</h3>
+            </div>
+            <div class="active-role-indicator">
+              @if (auth.isDemoMode) {
+                Rol Simulado Activo: <strong>{{ effectiveRole() }}</strong>
+              } @else {
+                Rol Azure Entra ID: <strong>{{ auth.userRole() }}</strong>
+                @if (isSimulationAllowed() && effectiveRole() !== auth.userRole()) {
+                  <small style="margin-left: 0.5rem; color: var(--orange);">(Vista Previa: {{ effectiveRole() }})</small>
+                }
+              }
+            </div>
+          </div>
+
+          @if (isSimulationAllowed()) {
+            <div class="role-selector-bar" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+              <button class="role-btn" [class.selected]="effectiveRole() === 'ADMIN'" (click)="setSimulatedRole('ADMIN')" type="button">🛡️ Admin General (ADMIN)</button>
+              <button class="role-btn" [class.selected]="effectiveRole() === 'GERENTE'" (click)="setSimulatedRole('GERENTE')" type="button">🏢 Admin Local (GERENTE)</button>
+              <button class="role-btn" [class.selected]="effectiveRole() === 'COCINA'" (click)="setSimulatedRole('COCINA')" type="button">👨‍🍳 Operador Cocina (COCINA)</button>
+              <button class="role-btn" [class.selected]="effectiveRole() === 'REPARTIDOR'" (click)="setSimulatedRole('REPARTIDOR')" type="button">🛵 Repartidor (REPARTIDOR)</button>
+              <button class="role-btn" [class.selected]="effectiveRole() === 'CUSTOMER'" (click)="setSimulatedRole('CUSTOMER')" type="button">👤 Cliente (CUSTOMER)</button>
+            </div>
+          }
+
+          <div class="table-wrap">
+            <table class="rbac-table">
+              <thead>
+                <tr>
+                  <th>Recurso / Operación</th>
+                  <th>Cliente (CUSTOMER)</th>
+                  <th>Cocina (COCINA)</th>
+                  <th>Repartidor (REPARTIDOR)</th>
+                  <th>Admin Local (GERENTE)</th>
+                  <th>Admin General (ADMIN)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Ver Catálogo Público (GET /api/productos)</strong></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Crear/Editar Productos (POST/PUT /api/productos)</strong></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Eliminar Productos (DELETE /api/productos)</strong></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-yes">✓ Permitido (Solo Admin)</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Checkout de Carrito (POST /api/pedidos/checkout)</strong></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                  <td><span class="check-no">✕ No aplica</span></td>
+                  <td><span class="check-no">✕ No aplica</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                  <td><span class="check-yes">✓ Permitido</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Listar y Actualizar Pedidos (GET/PUT /api/pedidos)</strong></td>
+                  <td><span class="check-yes">✓ Mis Pedidos</span></td>
+                  <td><span class="check-yes">✓ Preparación</span></td>
+                  <td><span class="check-yes">✓ Despacho/Entrega</span></td>
+                  <td><span class="check-yes">✓ Todos</span></td>
+                  <td><span class="check-yes">✓ Todos</span></td>
+                </tr>
+                <tr>
+                  <td><strong>Eliminar Pedidos (DELETE /api/pedidos)</strong></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-no">✕ Bloqueado</span></td>
+                  <td><span class="check-yes">✓ Permitido (Solo Admin)</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="rbac-info-note">
+            <strong>ℹ Nota sobre Integración con Azure Entra ID:</strong>
+            <p>El backend valida los tokens JWT emitidos por Microsoft Entra ID verificando el claim <code>roles</code> (por ejemplo <code>ROLE_ADMIN</code>, <code>ROLE_GERENTE</code>, <code>ROLE_COCINA</code>, <code>ROLE_REPARTIDOR</code>, <code>ROLE_CUSTOMER</code>). En este panel puedes alternar roles para verificar la respuesta reactiva de la interfaz.</p>
+          </div>
+        </div>
+      }
+
+    </div>
+  </section>
+
+  <!-- ==================== MODAL: CREAR / EDITAR PEDIDO ==================== -->
+  @if (isPedidoModalOpen()) {
+    <div class="modal-backdrop" (click)="cerrarPedidoModal()" (keydown.escape)="cerrarPedidoModal()" tabindex="0" role="button" aria-label="Cerrar modal pedido">
+      <div class="form-modal-card" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" (keydown)="$event.stopPropagation()" tabindex="0">
+        <div class="modal-title-row">
+          <div>
+            <span class="eyebrow">Orden de Venta</span>
+            <h3>{{ editingPedidoId() ? 'Editar Pedido #' + editingPedidoId() : 'Nuevo Pedido Manual' }}</h3>
+          </div>
+          <button class="close-modal-btn" type="button" (click)="cerrarPedidoModal()">✕</button>
+        </div>
+
+        <form (ngSubmit)="guardarPedido()" class="modal-form">
+          <div class="form-group">
+            <label for="cliente">Nombre del Cliente *</label>
+            <input id="cliente" type="text" [(ngModel)]="pedidoForm.cliente" name="cliente" required placeholder="Ej: Cafetería Central / Juan Pérez" />
+          </div>
+
+          <div class="form-group">
+            <label for="producto">Detalle de Productos *</label>
+            <input id="producto" type="text" [(ngModel)]="pedidoForm.producto" name="producto" required placeholder="Ej: Masa madre clásica (x2), Roll de canela (x1)" />
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="cantidad">Cantidad Total de Unidades</label>
+              <input id="cantidad" type="number" min="1" [(ngModel)]="pedidoForm.cantidad" name="cantidad" />
+            </div>
+            <div class="form-group">
+              <label for="total">Total ($ CLP)</label>
+              <input id="total" type="number" min="0" [(ngModel)]="pedidoForm.total" name="total" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="estado">Estado del Pedido</label>
+            <select id="estado" [(ngModel)]="pedidoForm.estado" name="estado">
+              <option value="En preparación">En preparación</option>
+              <option value="En despacho">En despacho</option>
+              <option value="Confirmado">Confirmado</option>
+              <option value="Entregado">Entregado</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+
+          <div class="modal-footer-btns">
+            <button class="secondary-btn" type="button" (click)="cerrarPedidoModal()">Cancelar</button>
+            <button class="primary-button" type="submit">{{ editingPedidoId() ? 'Guardar Cambios' : 'Crear Pedido' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- ==================== MODAL: CREAR / EDITAR PRODUCTO ==================== -->
+  @if (isProductoModalOpen()) {
+    <div class="modal-backdrop" (click)="cerrarProductoModal()" (keydown.escape)="cerrarProductoModal()" tabindex="0" role="button" aria-label="Cerrar modal producto">
+      <div class="form-modal-card" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" (keydown)="$event.stopPropagation()" tabindex="0">
+        <div class="modal-title-row">
+          <div>
+            <span class="eyebrow">Catálogo</span>
+            <h3>{{ editingProductoId() ? 'Editar Producto' : 'Crear Nuevo Producto' }}</h3>
+          </div>
+          <button class="close-modal-btn" type="button" (click)="cerrarProductoModal()">✕</button>
+        </div>
+
+        <form (ngSubmit)="guardarProducto()" class="modal-form">
+          <div class="form-group">
+            <label for="prod-nombre">Nombre del Producto *</label>
+            <input id="prod-nombre" type="text" [(ngModel)]="productoForm.nombre" name="nombre" required placeholder="Ej: Baguette Rústica" />
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="prod-categoria">Categoría *</label>
+              <select id="prod-categoria" [(ngModel)]="productoForm.categoria" name="categoria">
+                <option value="Pan fresco">Pan fresco</option>
+                <option value="Dulce">Dulce</option>
+                <option value="Salado">Salado</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="prod-precio">Precio ($ CLP) *</label>
+              <input id="prod-precio" type="number" min="0" [(ngModel)]="productoForm.precio" name="precio" required />
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="prod-stock">Stock Disponible</label>
+              <input id="prod-stock" type="number" min="0" [(ngModel)]="productoForm.stock" name="stock" />
+            </div>
+            <div class="form-group">
+              <label for="prod-badge">Distintivo (Opcional)</label>
+              <input id="prod-badge" type="text" [(ngModel)]="productoForm.badge" name="badge" placeholder="Ej: Nuevo / Favorito" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="prod-imagen">URL de la Imagen</label>
+            <input id="prod-imagen" type="text" [(ngModel)]="productoForm.imagen" name="imagen" placeholder="https://images.unsplash.com/..." />
+          </div>
+
+          <div class="form-group">
+            <label for="prod-descripcion">Descripción</label>
+            <textarea id="prod-descripcion" rows="2" [(ngModel)]="productoForm.descripcion" name="descripcion" placeholder="Descripción artesanal del producto..."></textarea>
+          </div>
+
+          <div class="form-group checkbox-row">
+            <label>
+              <input type="checkbox" [(ngModel)]="productoForm.activo" name="activo" />
+              <span>Producto Activo para la Venta</span>
+            </label>
+          </div>
+
+          <div class="modal-footer-btns">
+            <button class="secondary-btn" type="button" (click)="cerrarProductoModal()">Cancelar</button>
+            <button class="primary-button" type="submit">{{ editingProductoId() ? 'Actualizar Producto' : 'Guardar Producto' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  <!-- ==================== MODAL: CONFIRMAR ELIMINACIÓN ==================== -->
+  @if (isDeleteConfirmOpen() && deleteTarget()) {
+    <div class="modal-backdrop" (click)="cancelarEliminar()" (keydown.escape)="cancelarEliminar()" tabindex="0" role="button" aria-label="Cerrar confirmación eliminación">
+      <div class="form-modal-card delete-confirm-card" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" (keydown)="$event.stopPropagation()" tabindex="0">
+        <div class="delete-icon-badge">!</div>
+        <h3>¿Confirmar Eliminación?</h3>
+        <p class="delete-warning-text">
+          Estás a punto de eliminar <strong>{{ deleteTarget()!.label }}</strong>. Esta acción no se puede deshacer.
+        </p>
+
+        <div class="modal-footer-btns">
+          <button class="secondary-btn" type="button" (click)="cancelarEliminar()">Cancelar</button>
+          <button class="primary-button delete-btn-confirm" type="button" (click)="ejecutarEliminacion()">Sí, Eliminar</button>
+        </div>
+      </div>
+    </div>
+  }
+</main>
+

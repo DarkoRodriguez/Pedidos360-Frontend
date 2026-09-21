@@ -1,0 +1,224 @@
+<main class="shop-shell">
+  <!-- Notificación Toast -->
+  @if (toastMessage()) {
+    <div class="toast-notification" role="status" aria-live="polite">
+      <span>{{ toastMessage() }}</span>
+    </div>
+  }
+
+  <nav class="shop-nav" aria-label="Navegación de tienda">
+    <a class="brand" href="#inicio" aria-label="Pedidos360, inicio">
+      <span class="brand-mark">P<span>360</span></span>
+      <span>Pedidos360</span>
+    </a>
+    <div class="nav-links">
+      <a href="#catalogo">Catálogo</a>
+      <a href="#recomendados">Recomendados</a>
+      <a href="#historia">Nuestra masa</a>
+      @if (auth.isAuthenticated()) {
+        <a (click)="irADashboard()" class="dashboard-link" style="cursor: pointer;">Panel de Control ↗</a>
+      }
+    </div>
+    <div class="nav-actions">
+      <button class="cart-button" type="button" (click)="toggleCart()" aria-label="Carrito de compras">
+        <span aria-hidden="true">▢</span>
+        <span>Carrito</span>
+        <span class="cart-count">{{ cartItemCount() }}</span>
+      </button>
+
+      @if (!auth.isAuthenticated()) {
+        <button class="login-button" type="button" (click)="signIn()" [disabled]="isLoading()">
+          {{ isLoading() ? 'Conectando...' : 'Iniciar sesión' }}
+        </button>
+      } @else {
+        <div class="user-pill">
+          <span class="user-greeting">{{ auth.userName() }}</span>
+          <button class="small-nav-btn" type="button" (click)="irADashboard()">Dashboard</button>
+          <button class="small-nav-btn secondary" type="button" (click)="signOut()">Salir</button>
+        </div>
+      }
+    </div>
+  </nav>
+
+  <section class="hero" id="inicio" aria-label="Destacados">
+    @for (slide of slides; track slide.title; let index = $index) {
+      @if (activeSlide() === index) {
+        <div class="hero-image" [style.background-image]="'url(' + slide.image + ')'" role="img" [attr.aria-label]="slide.title"></div>
+        <div class="hero-wash"></div>
+        <div class="hero-content">
+          <p class="eyebrow">{{ slide.eyebrow }}</p>
+          <h1>{{ slide.title }}</h1>
+          <p class="hero-copy">{{ slide.copy }}</p>
+          <a class="hero-button" href="#catalogo">Explorar productos <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="slide-meta"><span>0{{ index + 1 }}</span><span class="slide-rule"></span><span>0{{ slides.length }}</span></div>
+      }
+    }
+    <div class="carousel-controls">
+      <button type="button" (click)="previousSlide()" aria-label="Destacado anterior">←</button>
+      <div class="carousel-dots">
+        @for (slide of slides; track slide.title; let index = $index) {
+          <button type="button" [class.active]="activeSlide() === index" (click)="selectSlide(index)" [attr.aria-label]="'Ver destacado ' + (index + 1)" [attr.aria-current]="activeSlide() === index ? 'true' : null"></button>
+        }
+      </div>
+      <button type="button" (click)="nextSlide()" aria-label="Siguiente destacado">→</button>
+    </div>
+  </section>
+
+  <section class="catalog-section" id="catalogo" aria-labelledby="catalog-title">
+    <div class="section-heading">
+      <div><p class="eyebrow">La vitrina de hoy</p><h2 id="catalog-title">Hecho para disfrutar<br><em>sin apuro.</em></h2></div>
+      <p class="section-intro">Pan, dulces y salados hechos en pequeñas tandas, con ingredientes que se reconocen.</p>
+    </div>
+    <div class="category-row" aria-label="Filtrar por categoría">
+      @for (category of categories; track category) {
+        <button type="button" [class.active]="activeCategory() === category" (click)="selectCategory(category)">{{ category }}</button>
+      }
+    </div>
+    <div class="product-grid" id="recomendados">
+      @for (product of filteredProducts(); track product.id) {
+        <article class="product-card">
+          <div class="product-image-wrap">
+            <img [ngSrc]="product.imagen" [alt]="product.nombre" width="700" height="700" priority />
+            @if (product.badge) { <span class="product-badge">{{ product.badge }}</span> }
+            <button class="add-button" type="button" (click)="agregarAlCarrito(product.id)" [attr.aria-label]="'Agregar ' + product.nombre">+</button>
+          </div>
+          <div class="product-info">
+            <p>{{ product.categoria }}</p>
+            <div>
+              <h3>{{ product.nombre }}</h3>
+              <strong>${{ product.precio | number:'1.0-0' }}</strong>
+            </div>
+            <small>{{ product.descripcion }}</small>
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+
+  <section class="story-band" id="historia" aria-labelledby="story-title">
+    <div class="story-number">360<span>°</span></div>
+    <div><p class="eyebrow">Desde la primera mezcla</p><h2 id="story-title">Una forma más simple<br>de pedir lo bueno.</h2></div>
+    <p>Pedidos360 reúne la selección de nuestros locales favoritos para que puedas descubrir, elegir y recibir en un mismo recorrido.</p>
+    <a href="#catalogo" aria-label="Ver toda la selección">Conoce la selección <span aria-hidden="true">→</span></a>
+  </section>
+
+  <footer>
+    <span>Pedidos360</span>
+    <span>Pan fresco para días con buen ritmo.</span>
+    <span>© 2026</span>
+  </footer>
+
+  <!-- Drawer lateral de Carrito de Compras -->
+  @if (isCartOpen()) {
+    <div class="cart-backdrop" (click)="closeCart()" (keydown.escape)="closeCart()" tabindex="0" role="button" aria-label="Cerrar carrito"></div>
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-label="Carrito de compras">
+      <div class="cart-header">
+        <div>
+          <span class="eyebrow">Tus Selecciones</span>
+          <h3>Carrito de Compras</h3>
+        </div>
+        <button class="close-cart-btn" type="button" (click)="closeCart()" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="cart-body">
+        @if (!cart() || !cart()?.items || cart()!.items.length === 0) {
+          <div class="empty-cart-state">
+            <span class="empty-icon">▢</span>
+            <p><strong>Tu carrito está vacío</strong></p>
+            <p class="empty-sub">Agrega delicias de nuestro catálogo para comenzar tu pedido.</p>
+            <button class="hero-button small" type="button" (click)="closeCart()">Explorar Vitrina</button>
+          </div>
+        } @else {
+          <div class="cart-item-list">
+            @for (item of cart()!.items; track item.id) {
+              <div class="cart-item-card">
+                <img [src]="item.producto.imagen" [alt]="item.producto.nombre" class="cart-item-img" />
+                <div class="cart-item-details">
+                  <div class="cart-item-name-row">
+                    <strong>{{ item.producto.nombre }}</strong>
+                    <button class="item-delete-btn" type="button" (click)="eliminarItem(item.id)" title="Quitar">×</button>
+                  </div>
+                  <span class="cart-item-price">${{ item.precioUnitario | number:'1.0-0' }} c/u</span>
+                  <div class="cart-item-actions">
+                    <div class="qty-control">
+                      <button type="button" (click)="actualizarCantidad(item.id, item.cantidad - 1)">−</button>
+                      <span>{{ item.cantidad }}</span>
+                      <button type="button" (click)="actualizarCantidad(item.id, item.cantidad + 1)">+</button>
+                    </div>
+                    <strong class="item-subtotal">${{ (item.subtotal || item.precioUnitario * item.cantidad) | number:'1.0-0' }}</strong>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      @if (cart() && cart()!.items && cart()!.items.length > 0) {
+        <div class="cart-footer">
+          <div class="cart-summary-row">
+            <span>Total artículos:</span>
+            <strong>{{ cart()!.cantidadItems }} unidades</strong>
+          </div>
+          <div class="cart-summary-row total-row">
+            <span>Total a pagar:</span>
+            <strong>${{ cart()!.total | number:'1.0-0' }}</strong>
+          </div>
+
+          <button class="checkout-submit-btn" type="button" (click)="ejecutarCheckout()" [disabled]="isCheckingOut()">
+            @if (isCheckingOut()) {
+              <span>Procesando pedido...</span>
+            } @else {
+              <span>Confirmar Pedido (Checkout) <strong class="arrow-sym">→</strong></span>
+            }
+          </button>
+          <p class="checkout-note">El pedido se convertirá en una orden registrada en el sistema y tu carrito quedará liberado.</p>
+        </div>
+      }
+    </aside>
+  }
+
+  <!-- Modal de Pedido Confirmado -->
+  @if (checkoutSuccess()) {
+    <div class="modal-backdrop" (click)="closeCheckoutSuccess()" (keydown.escape)="closeCheckoutSuccess()" tabindex="0" role="button" aria-label="Cerrar confirmación">
+      <div class="success-modal-card" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="modal-success-title" (keydown)="$event.stopPropagation()" tabindex="0">
+        <div class="success-icon-badge">✓</div>
+        <p class="eyebrow" id="modal-success-title">¡Pedido Confirmado con Éxito!</p>
+        <h2>Orden #{{ checkoutSuccess()!.id }}</h2>
+        <p class="success-desc">Tu pedido ha sido procesado y registrado en nuestro sistema. El equipo de panadería ya comenzó su preparación.</p>
+
+        <div class="order-summary-box">
+          <div class="summary-line">
+            <span>Cliente:</span>
+            <strong>{{ checkoutSuccess()!.cliente }}</strong>
+          </div>
+          <div class="summary-line">
+            <span>Productos:</span>
+            <strong>{{ checkoutSuccess()!.producto }}</strong>
+          </div>
+          <div class="summary-line">
+            <span>Cantidad:</span>
+            <strong>{{ checkoutSuccess()!.cantidad }} unidades</strong>
+          </div>
+          @if (checkoutSuccess()!.total) {
+            <div class="summary-line total">
+              <span>Total:</span>
+              <strong>${{ checkoutSuccess()!.total | number:'1.0-0' }}</strong>
+            </div>
+          }
+          <div class="summary-line">
+            <span>Estado inicial:</span>
+            <span class="status orange"><i></i>{{ checkoutSuccess()!.estado }}</span>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="primary-button" type="button" (click)="irADashboard()">Ir al Panel de Control</button>
+          <button class="secondary-button" type="button" (click)="closeCheckoutSuccess()">Seguir Comprando</button>
+        </div>
+      </div>
+    </div>
+  }
+</main>
+

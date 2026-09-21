@@ -1,0 +1,61 @@
+/* ── Toast de Notificación ─────────────────────────────────────────────── */
+.toast-notification {
+  /* Posición fija: flota sobre todo, esquina inferior derecha */
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 9999;
+
+  /* Apariencia de globo */
+  background: #1a1a2e;
+  color: #f0f0f0;
+  padding: 0.9rem 1.5rem;
+  border-radius: 12px;
+  border-left: 4px solid #e67e22;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+
+  /* Tipografía */
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  max-width: 380px;
+  word-break: break-word;
+
+  /* Layout */
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+
+  /* Animación de entrada */
+  animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
+  /* NO afecta el flujo del documento */
+  pointer-events: none;
+}
+
+/* Ícono decorativo al inicio */
+.toast-notification::before {
+  content: '✦';
+  color: #e67e22;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* Toast de error (mensajes con ⛔) */
+.toast-notification:has(span:first-child:not(:empty)) {
+  border-left-color: #e67e22;
+}
+
+/* Animación entrada: sube desde abajo y aparece */
+@keyframes toast-slide-in {
+  from {
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
