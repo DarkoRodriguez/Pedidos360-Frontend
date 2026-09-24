@@ -7,10 +7,15 @@ import { environment } from '../../../environments/environment';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
-  constructor(private auth: AuthService) {}
+  constructor(private auth: AuthService) { }
 
   intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
-    const isApiRequest = req.url.startsWith(environment.apiUrl) || req.url.startsWith('/api') || req.url.includes('localhost:8080');
+    const isApiRequest =
+      req.url.startsWith(environment.apiUrl) ||
+      req.url.startsWith('/api') ||
+      req.url.includes('execute-api') ||
+      req.url.includes('52.204.44.178') ||
+      req.url.includes('localhost:8080');
 
     if (!isApiRequest) {
       return next.handle(req);
